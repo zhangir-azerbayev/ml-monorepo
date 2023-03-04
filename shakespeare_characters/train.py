@@ -105,11 +105,6 @@ def main():
                                     config.model.d_model, 
                                     vocab_size
                                     )
-        case "TwoLayerSingleHeadModel":
-            model = TwoLayerSingleHeadModel(context_length, 
-                                    config.model.d_model, 
-                                    vocab_size
-                                    )
         case "MultiHeadModel": 
             model = MultiHeadModel(context_length, 
                                    config.model.d_model, 
@@ -140,7 +135,7 @@ def main():
 
     model = train(model, train_loader, val_loader, config)
 
-    outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=100)
+    outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=500)
     out_text = decode(torch.squeeze(outs))
     print("after training: ", out_text)
 
