@@ -1,0 +1,12 @@
+device: "cpu"
+model:
+  arch: "TwoLayerSingleHeadModel"
+  context_length: 8
+  n_embed: 32
+  head_size: 32
+train:
+  batch_size: 32
+  eval_interval: 100
+  eval_iters: 20
+  learning_rate: 5.e-4
+  max_iters: 100_000

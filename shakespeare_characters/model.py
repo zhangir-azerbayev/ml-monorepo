@@ -153,3 +153,41 @@ class SingleHeadModel(AttentionModel):
             loss = F.cross_entropy(logits, targets)
 
         return logits, loss
+
+
+class TwoLayerSingleHeadModel(AttentionModel): 
+    def __init__(self, context_length, n_embed, head_size, vocab_size,
+            dropout=.2): 
+        super().__init__(context_length)
+
+        self.embed = nn.Embedding(vocab_size, n_embed)
+        self.pos_embed = nn.Embedding(context_length, n_embed)
+        self.attention1 = Head(context_length, n_embed, head_size)
+        self.layernorm = nn.LayerNorm(head_size)
+        self.attention2 = Head(context_length, head_size, head_size)
+        self.proj = nn.Linear(head_size, vocab_size, bias=False)
+
+    def forward(self, inputs, targets=None): 
+        """
+        input: (B, T), where T<= vocab_size
+
+        out: (B, T, vocab_size), (B, T, vocab_size)
+        """
+        B, T = inputs.shape
+        
+        # note the broadcasting below
+        embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=n_embed)
+        outs = self.attention1(embeds) # (B, T, C=head_size)
+        outs = self.layernorm(outs)
+        outs = self.attention2(outs)
+        logits = self.proj(outs)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, vocab_size = logits.shape
+            logits = logits.view(B*T, vocab_size)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
+        return logits, loss

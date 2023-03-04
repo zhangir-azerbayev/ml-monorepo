@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 import torch 
 import torch.nn as nn
 from torch.nn import functional as F 
-from model import BigramModel, SingleHeadModel
+from model import BigramModel, SingleHeadModel, TwoLayerSingleHeadModel
 torch.manual_seed(1337)
 
 def build_tokenizer(text): 
@@ -104,6 +104,14 @@ def main():
                                     config.model.head_size, 
                                     vocab_size
                                     )
+        case "TwoLayerSingleHeadModel":
+            model = TwoLayerSingleHeadModel(context_length, 
+                                    config.model.n_embed, 
+                                    config.model.head_size, 
+                                    vocab_size
+                                    )
+        case _: 
+            raise ValueError("config.model.arch invalid")
     
     prompt = "LORD BANQUO"
     outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=100)
