@@ -52,9 +52,10 @@ class BigramModel(nn.Module):
         return seqs
 
 class MLP(nn.Module):
-    def __init__(self, d_model, fan=4, dropout=.2):
+    def __init__(self, d_model, fan, dropout=.2):
+        super().__init__()
         self.fc = nn.Linear(d_model, fan*d_model)
-        self.nonlin = nn.GeLU()
+        self.nonlin = nn.GELU()
         self.proj = nn.Linear(fan*d_model, d_model)
         self.dropout = nn.Dropout(dropout)
 
@@ -155,6 +156,18 @@ class MultiHead(nn.Module):
 
         return outs
 
+class TransformerBlock(nn.Module):
+    def __init__(self, context_length, d_model, num_heads, fan=4): 
+        super().__init__()
+        self.ln1 = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.attn = MultiHead(context_length, d_model, num_heads)
+        self.ln2 = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.mlp = MLP(d_model, fan)
+
+    def forward(self, x):
+        x = x + self.attn(self.ln1(x))
+        x = x + self.mlp(self.ln2(x))
+        return x
 
 class AttentionModel(nn.Module): 
     def __init__(self, context_length): 
@@ -196,7 +209,7 @@ class SingleHeadModel(AttentionModel):
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_embed = nn.Embedding(context_length, d_model)
         self.attention = Head(context_length, d_model)
-        self.proj = nn.Linear(d_model, vocab_size, bias=False)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 
     def forward(self, inputs, targets=None): 
         """
@@ -209,7 +222,7 @@ class SingleHeadModel(AttentionModel):
         # note the broadcasting below
         embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=d_model)
         outs = self.attention(embeds) # (B, T, C=head_size)
-        logits = self.proj(outs)
+        logits = self.lm_head(outs)
 
         if targets is None:
             loss = None
@@ -228,7 +241,7 @@ class MultiHeadModel(AttentionModel):
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_embed = nn.Embedding(context_length, d_model)
         self.attention = MultiHead(context_length, d_model, num_heads)
-        self.proj = nn.Linear(d_model, vocab_size, bias=False)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 
     def forward(self, inputs, targets=None): 
         """
@@ -241,7 +254,73 @@ class MultiHeadModel(AttentionModel):
         # note the broadcasting below
         embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=d_model)
         outs = self.attention(embeds) # (B, T, C=head_size*num_heads)
-        logits = self.proj(outs)
+        logits = self.lm_head(outs)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, vocab_size = logits.shape
+            logits = logits.view(B*T, vocab_size)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
+        return logits, loss
+
+class SingleLayerModel(AttentionModel):
+    def __init__(self, context_length, d_model, num_heads, vocab_size):
+        super().__init__(context_length)
+        self.embed = nn.Embedding(vocab_size, d_model)
+        self.pos_embed = nn.Embedding(context_length, d_model)
+        self.block = TransformerBlock(context_length, d_model, num_heads)
+        self.ln = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, inputs, targets=None): 
+        """
+        input: (B, T), where T<= vocab_size
+
+        out: (B, T, vocab_size), (B, T, vocab_size)
+        """
+        B, T = inputs.shape
+        
+        # note the broadcasting below
+        embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=d_model)
+        outs = self.ln(self.block(embeds)) # (B, T, C=d_model)
+        logits = self.lm_head(outs)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, vocab_size = logits.shape
+            logits = logits.view(B*T, vocab_size)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
+        return logits, loss
+
+class GPTModel(AttentionModel):
+    def __init__(self, context_length, d_model, num_heads, n_layers, vocab_size):
+        super().__init__(context_length)
+        self.embed = nn.Embedding(vocab_size, d_model)
+        self.pos_embed = nn.Embedding(context_length, d_model)
+        self.blocks = nn.Sequential(*[TransformerBlock(context_length, d_model, num_heads)
+                for _ in range(n_layers)]
+                )
+        self.ln = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, inputs, targets=None): 
+        """
+        input: (B, T), where T<= vocab_size
+
+        out: (B, T, vocab_size), (B, T, vocab_size)
+        """
+        B, T = inputs.shape
+        
+        # note the broadcasting below
+        embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=d_model)
+        outs = self.ln(self.blocks(embeds)) # (B, T, C=d_model)
+        logits = self.lm_head(outs)
 
         if targets is None:
             loss = None

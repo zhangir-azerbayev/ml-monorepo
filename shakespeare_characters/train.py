@@ -111,6 +111,17 @@ def main():
                                    config.model.num_heads, 
                                    vocab_size
                                    )
+        case "SingleLayerModel":
+            model = SingleLayerModel(context_length, 
+                                     config.model.d_model, 
+                                     config.model.num_heads,
+                                     vocab_size)
+        case "GPTModel": 
+            model = GPTModel(context_length, 
+                             config.model.d_model, 
+                             config.model.num_heads, 
+                             config.model.n_layers, 
+                             vocab_size)
         case _: 
             raise ValueError("config.model.arch invalid")
     

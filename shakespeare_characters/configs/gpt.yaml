@@ -1,0 +1,14 @@
+device: "cpu"
+model:
+  arch: "GPTModel"
+  context_length: 8
+  d_model: 96
+  num_heads: 6
+  n_layers: 3
+train:
+  batch_size: 32
+  eval_interval: 100
+  eval_iters: 1
+  learning_rate: 3.e-4
+  max_iters: 100_000
+  # train_set_length: 9
