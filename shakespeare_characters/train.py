@@ -1,12 +1,13 @@
 import sys
 from functools import partial, reduce 
+import argparse
 
 from omegaconf import OmegaConf
 
 import torch 
 import torch.nn as nn
 from torch.nn import functional as F 
-from model import BigramModel
+from model import BigramModel, SingleHeadModel
 torch.manual_seed(1337)
 
 def build_tokenizer(text): 
@@ -79,16 +80,30 @@ def train(model, train_loader, val_loader, config):
     return model
 
 def main():
-    config = OmegaConf.load("configs/default.yaml")
+    parser = argparse.ArgumentParser(description="Training character LMs")
+    parser.add_argument('config')
+    args = parser.parse_args()
+    config_path = args.config
+
+    config = OmegaConf.load(config_path)
     batch_size = config.train.batch_size
     context_length = config.model.context_length
+
 
     with open("data/shakespeare.txt") as f: 
         text = f.read()
     
     encode, decode, vocab_size = build_tokenizer(text)
 
-    model = BigramModel(vocab_size)
+    match config.model.arch:
+        case "BigramModel":
+            model = BigramModel(vocab_size)
+        case "SingleHeadModel": 
+            model = SingleHeadModel(context_length, 
+                                    config.model.n_embed, 
+                                    config.model.head_size, 
+                                    vocab_size
+                                    )
     
     prompt = "LORD BANQUO"
     outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=100)

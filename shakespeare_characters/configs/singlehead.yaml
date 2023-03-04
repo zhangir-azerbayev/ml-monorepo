@@ -1,9 +1,12 @@
 device: "cpu"
 model:
+  arch: "SingleHeadModel"
   context_length: 8
+  n_embed: 32
+  head_size: 16
 train:
   batch_size: 32
   eval_interval: 100
   eval_iters: 20
   learning_rate: 1.e-3
-  max_iters: 15_000
+  max_iters: 20_000
