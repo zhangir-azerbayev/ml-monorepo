@@ -2,8 +2,7 @@ device: "cpu"
 model:
   arch: "SingleHeadModel"
   context_length: 8
-  n_embed: 32
-  head_size: 16
+  d_model: 32
 train:
   batch_size: 32
   eval_interval: 100

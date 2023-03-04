@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 import torch 
 import torch.nn as nn
 from torch.nn import functional as F 
-from model import BigramModel, SingleHeadModel, TwoLayerSingleHeadModel
+from model import *
 torch.manual_seed(1337)
 
 def build_tokenizer(text): 
@@ -92,7 +92,9 @@ def main():
 
     with open("data/shakespeare.txt") as f: 
         text = f.read()
-    
+
+    print(f"EXAMPLE TEXT: {text[:100]}")
+ 
     encode, decode, vocab_size = build_tokenizer(text)
 
     match config.model.arch:
@@ -100,27 +102,40 @@ def main():
             model = BigramModel(vocab_size)
         case "SingleHeadModel": 
             model = SingleHeadModel(context_length, 
-                                    config.model.n_embed, 
-                                    config.model.head_size, 
+                                    config.model.d_model, 
                                     vocab_size
                                     )
         case "TwoLayerSingleHeadModel":
             model = TwoLayerSingleHeadModel(context_length, 
-                                    config.model.n_embed, 
-                                    config.model.head_size, 
+                                    config.model.d_model, 
                                     vocab_size
                                     )
+        case "MultiHeadModel": 
+            model = MultiHeadModel(context_length, 
+                                   config.model.d_model, 
+                                   config.model.num_heads, 
+                                   vocab_size
+                                   )
         case _: 
             raise ValueError("config.model.arch invalid")
     
-    prompt = "LORD BANQUO"
+    prompt = text[:1]
     outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=100)
     out_text = decode(torch.squeeze(outs))
     print("before training: ", out_text)
 
+    # create dataloaders that return tokens
     tokens = encode(text)
     n = int(0.9*len(tokens))
-    train_loader = DataLoader(tokens[:n], context_length, batch_size)
+    try:
+        train_set_length = config.train.train_set_length
+        print(f"TRUNCATING TRAIN SET TO {train_set_length} characters")
+        train_loader = DataLoader(tokens[:train_set_length], 
+                context_length, batch_size
+                )
+    except AttributeError:
+        print("USING FULL TRAINING SET")
+        train_loader = DataLoader(tokens[:n], context_length, batch_size)
     val_loader = DataLoader(tokens[n:], context_length, batch_size)
 
     model = train(model, train_loader, val_loader, config)
