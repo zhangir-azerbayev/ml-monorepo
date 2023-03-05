@@ -1,0 +1,2 @@
+omegaconf==2.3.0
+torch==1.13.1
