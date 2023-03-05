@@ -76,9 +76,9 @@ class Head(nn.Module):
     """single self-attention head"""
     def __init__(self, context_length, d_model): 
         super().__init__()
-        self.key = nn.Linear(d_model, head_size, bias=False)
-        self.query = nn.Linear(d_model, head_size, bias=False)
-        self.value = nn.Linear(d_model, head_size, bias=False)
+        self.key = nn.Linear(d_model, d_model, bias=False)
+        self.query = nn.Linear(d_model, d_model, bias=False)
+        self.value = nn.Linear(d_model, d_model, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(context_length, context_length)))
     
         self.context_length = context_length
@@ -87,14 +87,14 @@ class Head(nn.Module):
         """should handle T <= context_length
         inputs: (B, T, d_model)
 
-        out: (B, T, head_size)
+        out: (B, T, d_model)
         """
         # inputs is (B, T, C=d_model)
         B, T, C = inputs.shape
         assert T <= self.context_length
         
         # Note: this is inefficient. We fix this in MulitHead
-        keys = self.key(inputs) # (B, T, C=head_size)
+        keys = self.key(inputs) # (B, T, C=d_model)
         queries = self.query(inputs) # (B, T, C)
         values = self.query(inputs) # (B, T, C)
 
@@ -105,7 +105,8 @@ class Head(nn.Module):
         attn_scores = F.softmax(attn_logits, dim=-1)
  
         # (B, T, C) = (B, T, T) @ (B, T, C)
-        # remember C=head_size
+        # remember C=d_model
+        
         outs = attn_scores @ values 
 
         return outs
@@ -309,6 +310,8 @@ class GPTModel(AttentionModel):
         self.ln = nn.LayerNorm(d_model, elementwise_affine=False)
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 
+        self.register_buffer('arange', torch.arange(context_length))
+
     def forward(self, inputs, targets=None): 
         """
         input: (B, T), where T<= vocab_size
@@ -318,7 +321,7 @@ class GPTModel(AttentionModel):
         B, T = inputs.shape
         
         # note the broadcasting below
-        embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=d_model)
+        embeds = self.embed(inputs) + self.pos_embed(self.arange[:T]) # (B, T, C=d_model)
         outs = self.ln(self.blocks(embeds)) # (B, T, C=d_model)
         logits = self.lm_head(outs)
 

@@ -9,3 +9,5 @@ train:
   eval_iters: 20
   learning_rate: 1.e-3
   max_iters: 20_000
+wandb:
+  name: "singlehead_attention"

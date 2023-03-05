@@ -10,6 +10,8 @@ from torch.nn import functional as F
 from model import *
 torch.manual_seed(1337)
 
+import wandb
+
 def build_tokenizer(text): 
     print("hit build_tokenizer method!")
     chars = sorted(list(set(text)))
@@ -55,7 +57,7 @@ def estimate_loss(model, train_loader, val_loader, eval_iters):
     model.train()
     return out
 
-def train(model, train_loader, val_loader, config):
+def train(model, train_loader, val_loader, config, device, log=True):
     device = config.device
     learning_rate = config.train.learning_rate
     max_iters = config.train.max_iters
@@ -67,12 +69,14 @@ def train(model, train_loader, val_loader, config):
     for i in range(max_iters): 
         if i % eval_interval == 0 or i == max_iters - 1:
             losses = estimate_loss(model, train_loader, val_loader, eval_iters)
-            print(f"step {i}, ", f"train loss {losses['train']:.4f}, ", 
-                    f"val loss {losses['val']:.4f}")
+            log_dict = {"step": i, "train_loss": losses['train'], "val_loss": losses['val']}
+            if log:
+                wandb.log(log_dict)
+            print(log_dict)
         
         inputs, targets = train_loader.get_batch()
 
-        logits, loss = model(inputs, targets)
+        logits, loss = model(inputs.to(device), targets.to(device))
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
@@ -89,10 +93,16 @@ def main():
     batch_size = config.train.batch_size
     context_length = config.model.context_length
     
-    if torch.cuda_is_available():
+    if torch.cuda.is_available():
         device = config.device
     else:
         device="cpu"
+
+    try: 
+        run_obj = wandb.init(project="shakespeare_characters", name=config.wandb.name)
+    except AttributeError: 
+        print("NOT LOGGING TO WANDB")
+        run_obj = None
 
     with open("data/shakespeare.txt") as f: 
         text = f.read()
@@ -128,9 +138,12 @@ def main():
                              vocab_size).to(device)
         case _: 
             raise ValueError("config.model.arch invalid")
-    
+
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"NUM PARAMS: {n_params}")
+
     prompt = text[:1]
-    outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=100)
+    outs = model.generate(torch.unsqueeze(encode(prompt), dim=0).to(device), max_new_tokens=100)
     out_text = decode(torch.squeeze(outs))
     print("before training: ", out_text)
 
@@ -148,9 +161,11 @@ def main():
         train_loader = DataLoader(tokens[:n], context_length, batch_size)
     val_loader = DataLoader(tokens[n:], context_length, batch_size)
 
-    model = train(model, train_loader, val_loader, config)
+    model = train(model, train_loader, val_loader, config, device, log=True)
 
-    outs = model.generate(torch.unsqueeze(encode(prompt), dim=0), max_new_tokens=500)
+    outs = model.generate(torch.unsqueeze(encode(prompt), dim=0).to(device), 
+            max_new_tokens=500
+            )
     out_text = decode(torch.squeeze(outs))
     print("after training: ", out_text)
 

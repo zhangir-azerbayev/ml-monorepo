@@ -8,3 +8,5 @@ train:
   eval_iters: 20
   learning_rate: 1.e-3
   max_iters: 15_000
+wandb:
+  name: "bigram"
