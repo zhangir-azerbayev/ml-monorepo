@@ -1,16 +1,16 @@
 device: "cuda:0"
 model:
   arch: "GPTModel"
-  context_length: 32
-  d_model: 128
-  num_heads: 8
-  n_layers: 5
+  context_length: 128
+  d_model: 512
+  num_heads: 16
+  n_layers: 8
 train:
   batch_size: 128
   eval_interval: 100
   eval_iters: 1
   learning_rate: 3.e-4
-  max_iters: 20_000
+  max_iters: 1_200
   # train_set_length: 9
 wandb:
-  name: "biggpt"
+  name: "hugegpt_longcontext_shorttraining"
