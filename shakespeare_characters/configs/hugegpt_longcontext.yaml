@@ -1,10 +1,10 @@
-device: "cuda:1"
+device: "cuda:0"
 model:
   arch: "GPTModel"
-  context_length: 8
-  d_model: 96
-  num_heads: 6
-  n_layers: 3
+  context_length: 128
+  d_model: 512
+  num_heads: 16
+  n_layers: 8
 train:
   batch_size: 128
   eval_interval: 100
@@ -13,4 +13,4 @@ train:
   max_iters: 20_000
   # train_set_length: 9
 wandb:
-  name: "gpt"
+  name: "hugegpt_longcontext"

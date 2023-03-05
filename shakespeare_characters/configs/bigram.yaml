@@ -1,6 +1,6 @@
 device: "cpu"
 model:
-  arch: "bigram"
+  arch: "BigramModel"
   context_length: 8
 train:
   batch_size: 32
