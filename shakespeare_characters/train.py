@@ -88,7 +88,11 @@ def main():
     config = OmegaConf.load(config_path)
     batch_size = config.train.batch_size
     context_length = config.model.context_length
-
+    
+    if torch.cuda_is_available():
+        device = config.device
+    else:
+        device="cpu"
 
     with open("data/shakespeare.txt") as f: 
         text = f.read()
@@ -99,29 +103,29 @@ def main():
 
     match config.model.arch:
         case "BigramModel":
-            model = BigramModel(vocab_size)
+            model = BigramModel(vocab_size).to(device)
         case "SingleHeadModel": 
             model = SingleHeadModel(context_length, 
                                     config.model.d_model, 
                                     vocab_size
-                                    )
+                                    ).to(device)
         case "MultiHeadModel": 
             model = MultiHeadModel(context_length, 
                                    config.model.d_model, 
                                    config.model.num_heads, 
                                    vocab_size
-                                   )
+                                   ).to(device)
         case "SingleLayerModel":
             model = SingleLayerModel(context_length, 
                                      config.model.d_model, 
                                      config.model.num_heads,
-                                     vocab_size)
+                                     vocab_size).to(device)
         case "GPTModel": 
             model = GPTModel(context_length, 
                              config.model.d_model, 
                              config.model.num_heads, 
                              config.model.n_layers, 
-                             vocab_size)
+                             vocab_size).to(device)
         case _: 
             raise ValueError("config.model.arch invalid")
     
@@ -131,7 +135,7 @@ def main():
     print("before training: ", out_text)
 
     # create dataloaders that return tokens
-    tokens = encode(text)
+    tokens = encode(text).to(device)
     n = int(0.9*len(tokens))
     try:
         train_set_length = config.train.train_set_length
