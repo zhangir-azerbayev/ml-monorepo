@@ -69,10 +69,10 @@ def train(model, train_loader, val_loader, config, device, log=True):
     for i in range(max_iters): 
         if i % eval_interval == 0 or i == max_iters - 1:
             losses = estimate_loss(model, train_loader, val_loader, eval_iters)
-            log_dict = {"step": i, "train_loss": losses['train'], "val_loss": losses['val']}
+            log_dict = {"train_loss": losses['train'], "val_loss": losses['val']}
             if log:
-                wandb.log(log_dict)
-            print(log_dict)
+                wandb.log(data=log_dict, step=i)
+            print(f"step {i}", log_dict)
         
         inputs, targets = train_loader.get_batch()
 
