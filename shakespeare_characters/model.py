@@ -170,6 +170,65 @@ class TransformerBlock(nn.Module):
         x = x + self.mlp(self.ln2(x))
         return x
 
+class ParallelTransformerBlock(nn.Module): 
+    def __init__(self, context_length, d_model, num_heads, fan=4): 
+        self.qkv = nn.Linear(d_model, 3*d_model + fan*d_model)
+        self.mlp_out = nn.Linear(fan*d_model, d_model)
+        
+        self.ln = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.ln_q = nn.LayerNorm(d_model//num_heads, elementwise_affine=False)
+        self.ln_k = nn.LayerNorm(d_model//num_heads, elementwise_affine=False)
+        self.gelu = nn.GELU()
+
+        self.register_buffer('tril', torch.tril(torch.ones(context_length, context_length)))
+ 
+        self.context_length = context_length
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.fan = fan
+
+        assert d_model % num_heads==0
+        self.head_size = d_model//num_heads
+
+    def forward(self, inputs):
+        """
+        inputs: (B, T, C=d_model)
+
+        out: (B, T, C=d_model)
+        """
+        B, T, C = inputs.shape # C = d_model
+        assert T<=self.context_length
+
+        qkv_hidden_mat = self.qkv(self.ln(inputs)) # (B, T, C=3*d_model + self.fan*d_model)
+        assert (B,T,3*self.d_model+self.fan*self.d_model) == qkv_hidden_mat.shape
+        
+        split_lst = 3*[self.d_model] + [self.fan*self.d_model]
+        q, k, v, hidden = torch.split(qkv_hidden_mat, split_lst, dim=-1)
+        assert (B, T, self.d_model) == q.shape
+        assert (B, T, self.fan*self.d_model) == hidden.shape
+
+        q = self.ln_q(q.view(B, T, self.num_heads, self.head_size).transpose(1,2))
+        k = self.ln_k(k.view(B, T, self.num_heads, self.head_size).transpose(1,2))
+        v = v.view(B, T, self.num_heads, self.head_size).transpose(1,2)
+
+        mlp_out = self.mlp_out(self.gelu(hidden))
+        assert (B, T, self.d_model) == mlp_out.shape
+
+        # attention
+        # (B, num_heads, T, T) = (B, num_heads, T, head_size) @ (B, num_heads, head_size, T)
+        logits = q @ k.transpose(-1, -2) * k.shape[-1]**-.5 
+
+        logits = logits.masked_fill(self.tril[:T, :T]==0, float('-inf'))
+        scores = F.softmax(logits, dim=-1)
+        assert (B, self.num_heads, T, T) == scores.shape
+         
+        # (B, num_heads, T, head_size) = (B, nh, T, T)@(B, nh, T, head_size)
+        outs = scores @ v 
+
+        outs = outs.transpose(1, 2).contiguous().view(B, T, self.d_model)
+
+        return outs + mlp_out + inputs
+
 class AttentionModel(nn.Module): 
     def __init__(self, context_length): 
         super().__init__()
@@ -273,6 +332,38 @@ class SingleLayerModel(AttentionModel):
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_embed = nn.Embedding(context_length, d_model)
         self.block = TransformerBlock(context_length, d_model, num_heads)
+        self.ln = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, inputs, targets=None): 
+        """
+        input: (B, T), where T<= vocab_size
+
+        out: (B, T, vocab_size), (B, T, vocab_size)
+        """
+        B, T = inputs.shape
+        
+        # note the broadcasting below
+        embeds = self.embed(inputs) + self.pos_embed(torch.arange(T)) # (B, T, C=d_model)
+        outs = self.ln(self.block(embeds)) # (B, T, C=d_model)
+        logits = self.lm_head(outs)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, vocab_size = logits.shape
+            logits = logits.view(B*T, vocab_size)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
+        return logits, loss
+
+class ParallelSingleLayerModel(AttentionModel):
+    def __init__(self, context_length, d_model, num_heads, vocab_size):
+        super().__init__(context_length)
+        self.embed = nn.Embedding(vocab_size, d_model)
+        self.pos_embed = nn.Embedding(context_length, d_model)
+        self.block = ParallelTransformerBlock(context_length, d_model, num_heads)
         self.ln = nn.LayerNorm(d_model, elementwise_affine=False)
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 

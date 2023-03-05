@@ -130,6 +130,12 @@ def main():
                                      config.model.d_model, 
                                      config.model.num_heads,
                                      vocab_size).to(device)
+        case "ParallelSingleLayerModel":
+            model = ParallelSingleLayerModel(context_length, 
+                                     config.model.d_model, 
+                                     config.model.num_heads,
+                                     vocab_size).to(device)
+
         case "GPTModel": 
             model = GPTModel(context_length, 
                              config.model.d_model, 
