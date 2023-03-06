@@ -1,4 +1,4 @@
-device: "cpu"
+device: "cuda:1"
 model:
   arch: "SingleLayerModel"
   context_length: 8
@@ -9,7 +9,7 @@ train:
   eval_interval: 100
   eval_iters: 1
   learning_rate: 3.e-4
-  max_iters: 100_000
+  max_iters: 20_000
   # train_set_length: 9
 wandb:
   name: "single_layer_transformer"

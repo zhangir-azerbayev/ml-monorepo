@@ -100,9 +100,10 @@ def main():
 
     try: 
         run_obj = wandb.init(project="shakespeare_characters", name=config.wandb.name)
+        log=True
     except AttributeError: 
         print("NOT LOGGING TO WANDB")
-        run_obj = None
+        log=False
 
     with open("data/shakespeare.txt") as f: 
         text = f.read()
@@ -142,6 +143,12 @@ def main():
                              config.model.num_heads, 
                              config.model.n_layers, 
                              vocab_size).to(device)
+        case "ParallelGPTModel":
+            model = ParallelGPTModel(context_length, 
+                             config.model.d_model, 
+                             config.model.num_heads, 
+                             config.model.n_layers, 
+                             vocab_size).to(device)
         case _: 
             raise ValueError("config.model.arch invalid")
 
@@ -167,7 +174,7 @@ def main():
         train_loader = DataLoader(tokens[:n], context_length, batch_size)
     val_loader = DataLoader(tokens[n:], context_length, batch_size)
 
-    model = train(model, train_loader, val_loader, config, device, log=True)
+    model = train(model, train_loader, val_loader, config, device, log=log)
 
     outs = model.generate(torch.unsqueeze(encode(prompt), dim=0).to(device), 
             max_new_tokens=500
