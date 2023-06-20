@@ -1,0 +1,8 @@
+model: "EleutherAI/gpt-neo-1.3b"
+
+train_path: "data/summarize_from_feedback.jsonl"
+keys: ["body", "summary", "feedback"]
+
+lr: 0.0003
+train_steps: 5000
+batch_size: 4
