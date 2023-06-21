@@ -5,7 +5,9 @@ keys: ["rating", "body", "feedback"]
 
 lr: 0.0003
 train_steps: 5000
+warmup_steps: 50
 batch_size: 32
 
-
+save_dir: "runs/predict_summary"
+log_interval: 10
 
