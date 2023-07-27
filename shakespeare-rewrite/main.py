@@ -4,13 +4,31 @@ import yaml
 from typing import Literal
 
 """
+In machine learning, we often want to run the same code many times
+with different arguments. 
+
+Managing arguments and configs well makes it 
+1. Easier to launch and keep track of experiments
+2. Easier for others to use your code
+3. Easier to prepare your code for public release.
+
+Some things we want from a good config management system:
+1. Pass arguments through config files and cli.
+2. Set reasonable defaults
+3. Documentation and reproducibility 
+4. Lightweight computation and validation
+
+The following is a demonstration of the system that works well for me.
+"""
+
+"""
  __       __            ___    __  
 |__) \ / |  \  /\  |\ |  |  | /  ` 
 |     |  |__/ /~~\ | \|  |  | \__, 
                                    
 Pydantic is the most widely used data validation library for Python.
 """
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 
 """
@@ -45,8 +63,8 @@ class ModelConfig(BaseModel):
 
     d_model: int = 32
     n_heads: int = Field(
-            default=4 
-            description="Must divide `d_model`"
+            default=4,
+            description="Must divide `d_model`",
             )
     mlp_fan: int = 4
     activation: Literal['relu', 'gelu'] = 'gelu'
@@ -76,7 +94,6 @@ if __name__=="__main__":
     else: 
         cfg = cli_cfg
 
-    print(cfg)
 
     config = Config(**cfg)
     main(config)
